@@ -79,17 +79,41 @@ RESET       mov.w   #__STACK_END,SP         ; Initialize stack pointer
 StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop WDT
 SetupP1     bic.b   #BIT0,&P1OUT            ; Clear P1.0 output
             bis.b   #BIT0,&P1DIR            ; P1.0 output
-            bic.w   #LOCKLPM5,&PM5CTL0       ; Unlock I/O pins
+            bic.w   #LOCKLPM5,&PM5CTL0      ; Unlock I/O pins
 
-Mainloop    xor.b   #BIT0,&P1OUT            ; Toggle P1.0 every 0.1s
-Wait        mov.w   #50000,R15              ; Delay to R15
-L1          dec.w   R15                     ; Decrement R15
-            jnz     L1                      ; Delay over?
-            jmp     Mainloop                ; Again
+Main:
+            call    #FlashRED               ; flash the red LED
+            
+            jmp     Main                    ; loop main infinitely
             NOP
+            
+;------------------------------------------------------------------------------
+;           Subroutines
+;------------------------------------------------------------------------------
+
+FlashRED:
+            xor.b   #BIT0,&P1OUT            ; Toggle P1.0
+            mov.w   #001FFh, R14             ; Set Outer Delay Loop
+            call    #Delay
+            ret
+
+Delay:
+OutDelNotZero:
+            mov.w   #001FFh, R5             ; Set Inner Delay Loop
+InDelNotZero:
+            dec     R5                      ; Decrease Inner Delay
+            cmp.w   #00000h, R5             ; Check if Inner Delay = 0
+            jnz     InDelNotZero           ; Do not advance if delay != 0
+            dec     R14                      ; Decrease Outer Loop
+            cmp.w   #00000h, R14             ; Check if Outer Delay = 0
+            jnz     OutDelNotZero          ; Do not advance if delay != 0
+
+            ret
+
 ;------------------------------------------------------------------------------
 ;           Interrupt Vectors
 ;------------------------------------------------------------------------------
+
             .sect   RESET_VECTOR            ; MSP430 RESET Vector
             .short  RESET                   ;
             .end
