@@ -75,11 +75,35 @@
             .retain                         ; Ensure current section gets linked
             .retainrefs
 
+;---------Main Setup--------------------------------------------------
+
 RESET       mov.w   #__STACK_END,SP         ; Initialize stack pointer
 StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop WDT
+
 SetupP1     bic.b   #BIT0,&P1OUT            ; Clear P1.0 output
             bis.b   #BIT0,&P1DIR            ; P1.0 output
+            bic.b   #BIT6,&P6OUT            ; Clear P6.6 output
+            bis.b   #BIT6,&P6DIR            ; P6.6 output
             bic.w   #LOCKLPM5,&PM5CTL0      ; Unlock I/O pins
+
+;----------Setup Timer-----------------------------------------------
+
+            bis.w   #TBCLR, &TB0CTL         ; Clear Timers/Dividers
+            bis.w   #TBSSEL__SMCLK, &TB0CTL ; Use SMCLK
+            bis.w   #MC__UP, &TB0CTL        ; Set UP counter
+            bis.w   #CNTL_0, &TB0CTL        ; 16 bit count length
+            bis.w   #ID__4, &TB0CTL         ; divide by 4
+            bis.w   #TBIDEX__7, &TB0EX0     ; divide by 8
+
+            mov.w   #37275d, &TB0CCR0       ; Set Value to 32150 (decimal)
+            bis.w   #CCIE, &TB0CCTL0        ; Enable Interrupt
+            bic.w   #CCIFG, &TB0CCTL0       ; Clear Flag
+
+            nop
+            bis.w   #GIE, SR                ; Enable Maskable Interrupt
+            nop
+
+;----------Main Loop-------------------------------------------------
 
 Main:
             call    #FlashRED               ; flash the red LED
@@ -111,9 +135,22 @@ InDelNotZero:
             ret
 
 ;------------------------------------------------------------------------------
+;           Interrupt Service Routines
+;------------------------------------------------------------------------------
+
+ISR_TB0_CCR0:
+            xor.b   #BIT6,&P6OUT            ; Toggle P6.6/Flash Green LED
+            bic.w   #CCIFG, &TB0CCTL0
+            reti
+
+;------------------------------------------------------------------------------
 ;           Interrupt Vectors
 ;------------------------------------------------------------------------------
 
             .sect   RESET_VECTOR            ; MSP430 RESET Vector
             .short  RESET                   ;
+
+            .sect   ".int43"
+            .short  ISR_TB0_CCR0
+
             .end
