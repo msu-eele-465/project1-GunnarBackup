@@ -75,21 +75,82 @@
             .retain                         ; Ensure current section gets linked
             .retainrefs
 
+;---------Main Setup--------------------------------------------------
+
 RESET       mov.w   #__STACK_END,SP         ; Initialize stack pointer
 StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop WDT
+
 SetupP1     bic.b   #BIT0,&P1OUT            ; Clear P1.0 output
             bis.b   #BIT0,&P1DIR            ; P1.0 output
-            bic.w   #LOCKLPM5,&PM5CTL0       ; Unlock I/O pins
+            bic.b   #BIT6,&P6OUT            ; Clear P6.6 output
+            bis.b   #BIT6,&P6DIR            ; P6.6 output
+            bic.w   #LOCKLPM5,&PM5CTL0      ; Unlock I/O pins
 
-Mainloop    xor.b   #BIT0,&P1OUT            ; Toggle P1.0 every 0.1s
-Wait        mov.w   #50000,R15              ; Delay to R15
-L1          dec.w   R15                     ; Decrement R15
-            jnz     L1                      ; Delay over?
-            jmp     Mainloop                ; Again
+;----------Setup Timer-----------------------------------------------
+
+            bis.w   #TBCLR, &TB0CTL         ; Clear Timers/Dividers
+            bis.w   #TBSSEL__SMCLK, &TB0CTL ; Use SMCLK
+            bis.w   #MC__UP, &TB0CTL        ; Set UP counter
+            bis.w   #CNTL_0, &TB0CTL        ; 16 bit count length
+            bis.w   #ID__4, &TB0CTL         ; divide by 4
+            bis.w   #TBIDEX__7, &TB0EX0     ; divide by 8
+
+            mov.w   #37698d, &TB0CCR0       ; Set Value to 37698 (decimal)
+            bis.w   #CCIE, &TB0CCTL0        ; Enable Interrupt
+            bic.w   #CCIFG, &TB0CCTL0       ; Clear Flag
+
+            nop
+            bis.w   #GIE, SR                ; Enable Maskable Interrupt
+            nop
+
+;----------Main Loop-------------------------------------------------
+
+Main:
+            call    #FlashRED               ; flash the red LED
+            
+            jmp     Main                    ; loop main infinitely
             NOP
+            
+;------------------------------------------------------------------------------
+;           Subroutines
+;------------------------------------------------------------------------------
+
+FlashRED:
+            xor.b   #BIT0,&P1OUT            ; Toggle P1.0
+            mov.w   #0000Ah, R14             ; Set Outer Delay Loop (call .1 s delay 10x to get 1 s)
+            call    #Delay
+            ret
+
+Delay:
+OutDelNotZero:
+            mov.w   #066E2h, R5             ; Set Inner Delay Loop (makes a .1s delay)
+InDelNotZero:
+            dec     R5                      ; Decrease Inner Delay
+            cmp.w   #00000h, R5             ; Check if Inner Delay = 0
+            jnz     InDelNotZero           ; Do not advance if delay != 0
+            dec     R14                      ; Decrease Outer Loop
+            cmp.w   #00000h, R14             ; Check if Outer Delay = 0
+            jnz     OutDelNotZero          ; Do not advance if delay != 0
+
+            ret
+
+;------------------------------------------------------------------------------
+;           Interrupt Service Routines
+;------------------------------------------------------------------------------
+
+ISR_TB0_CCR0:
+            xor.b   #BIT6,&P6OUT            ; Toggle P6.6/Flash Green LED
+            bic.w   #CCIFG, &TB0CCTL0
+            reti
+
 ;------------------------------------------------------------------------------
 ;           Interrupt Vectors
 ;------------------------------------------------------------------------------
+
             .sect   RESET_VECTOR            ; MSP430 RESET Vector
             .short  RESET                   ;
+
+            .sect   ".int43"
+            .short  ISR_TB0_CCR0
+
             .end
