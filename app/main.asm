@@ -95,7 +95,7 @@ SetupP1     bic.b   #BIT0,&P1OUT            ; Clear P1.0 output
             bis.w   #ID__4, &TB0CTL         ; divide by 4
             bis.w   #TBIDEX__7, &TB0EX0     ; divide by 8
 
-            mov.w   #37275d, &TB0CCR0       ; Set Value to 32150 (decimal)
+            mov.w   #37698d, &TB0CCR0       ; Set Value to 37698 (decimal)
             bis.w   #CCIE, &TB0CCTL0        ; Enable Interrupt
             bic.w   #CCIFG, &TB0CCTL0       ; Clear Flag
 
@@ -117,13 +117,13 @@ Main:
 
 FlashRED:
             xor.b   #BIT0,&P1OUT            ; Toggle P1.0
-            mov.w   #001FFh, R14             ; Set Outer Delay Loop
+            mov.w   #0000Ah, R14             ; Set Outer Delay Loop (call .1 s delay 10x to get 1 s)
             call    #Delay
             ret
 
 Delay:
 OutDelNotZero:
-            mov.w   #001FFh, R5             ; Set Inner Delay Loop
+            mov.w   #066E2h, R5             ; Set Inner Delay Loop (makes a .1s delay)
 InDelNotZero:
             dec     R5                      ; Decrease Inner Delay
             cmp.w   #00000h, R5             ; Check if Inner Delay = 0
